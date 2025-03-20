@@ -1,0 +1,40 @@
+name: Update Submodules
+
+on:
+  # Run nightly: 8am UTC = 3am Eastern
+  schedule:
+    - cron: '0 8 * * *'
+  # Or run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+jobs:
+  update-submodules:
+    # only run on the main repo;
+    if: github.repository == 'ROCKNIX/distribution-nightly'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Github Personal Access Token
+          # needed because pushes with the deafult GITHUB_TOKEN won't trigger the build step
+          token: ${{ secrets.GH_PAT }}
+
+      - name: Update all submodules
+        id: update
+        run: |
+          git submodule init
+          
+          # update submodules to the latest remote version
+          git submodule update --remote --merge
+          echo "$(git status -z --porcelain)"
+          echo "changes=$(git status -z --porcelain)" >> $GITHUB_OUTPUT
+
+      - name: Push changes
+        if: ${{ steps.update.outputs.changes }}
+        run: |
+          git config user.email "action@github.com"
+          git config user.name "GitHub Actions"
+          git tag -a $(date +'%Y%m%d') -m "build nightly"
+          git commit -am "Build nightly $(date)"
+          git push
+          git push --tags
