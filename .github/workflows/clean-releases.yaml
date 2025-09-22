@@ -19,3 +19,23 @@ jobs:
           delete_workflows: true
           workflows_keep_day: 10
           gh_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Set up SSH sourceforge
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SF_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan frs.sourceforge.net >> ~/.ssh/known_hosts
+      - name: Install lftp
+        run: sudo apt-get update && sudo apt-get install -y lftp    
+      - name: Delete releases at sourceforge
+        run: |
+          lftp -u ${{ secrets.SF_USER }}, sftp://frs.sourceforge.net <<'EOF'
+          cd /home/frs/project/rocknix/nightly
+          cls -1 --sort=date > /tmp/dirs.txt
+          bye
+          EOF
+          
+          tail -n +6 /tmp/dirs.txt | while read d; do
+            echo "rm dir $d"
+            lftp -u "${{ secrets.SF_USER }}", sftp://frs.sourceforge.net -e "cd /home/frs/project/rocknix/nightly; rm -r $d; bye"
+          done
